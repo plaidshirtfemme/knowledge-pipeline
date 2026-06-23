@@ -2,7 +2,9 @@ import sys
 import time
 import random
 import logging
+import threading
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 from router import route
@@ -52,6 +54,8 @@ error_counts: dict[str, list[str]] = defaultdict(list)
 ok_items:     list[tuple[str, str]] = []
 failed_items: list[tuple[str, str, str]] = []  # (url, title, category)
 embedded_video_urls_found: list[tuple[str, int]] = []  # (article_url, video_count)
+
+_results_lock = threading.Lock()  # guards shared lists when running parallel
 
 
 def _categorize_error(exc: Exception) -> str:
@@ -198,39 +202,19 @@ def expand_playlist(url: str) -> list[str]:
     return [url]
 
 
-def run_batch(urls: list[str], chunk_size: int = 100, pause_minutes: int = 15) -> None:
-    total = len(urls)
-    started_at = datetime.now()
-    log(f"\nСтарт: {started_at.strftime('%d.%m.%Y %H:%M:%S')} · всего URL: {total}")
-    if chunk_size < total:
-        chunks = (total + chunk_size - 1) // chunk_size
-        log(f"Режим порций: {chunks} порции по ~{chunk_size} видео, пауза {pause_minutes} мин между ними")
-
-    t_batch = time.monotonic()
-    ok = 0
-    skipped = 0
-    active_seconds = 0.0
-    pause_seconds = 0.0
-    total_input_tokens = 0
-    total_output_tokens = 0
-
-    for i, url in enumerate(urls, 1):
-        log(f"\n[{i}/{total}]")
-        t_url = time.monotonic()
-        result = run(url)
-        active_seconds += time.monotonic() - t_url
-
-        status = result[0]
-        title = result[1] if len(result) > 1 else url
-
+def _record_result(result: tuple, url: str, counters: dict) -> None:
+    """Thread-safe recording of a run() result into shared counters."""
+    status = result[0]
+    title = result[1] if len(result) > 1 else url
+    with _results_lock:
         if status == "ok":
-            ok += 1
+            counters["ok"] += 1
             ok_items.append((url, title))
             usage = result[2] if len(result) > 2 else {}
-            total_input_tokens += usage.get("input_tokens", 0)
-            total_output_tokens += usage.get("output_tokens", 0)
+            counters["input_tokens"] += usage.get("input_tokens", 0)
+            counters["output_tokens"] += usage.get("output_tokens", 0)
         elif status == "skipped":
-            skipped += 1
+            counters["skipped"] += 1
             ok_items.append((url, title))
         elif status == "error":
             exc = result[2] if len(result) > 2 else Exception()
@@ -240,6 +224,60 @@ def run_batch(urls: list[str], chunk_size: int = 100, pause_minutes: int = 15) -
         else:
             error_counts[ERR_NO_TEXT].append(url)
             failed_items.append((url, url, ERR_NO_TEXT))
+
+
+def run_batch(urls: list[str], chunk_size: int = 100, pause_minutes: int = 15, parallel_articles: int = 1) -> None:
+    total = len(urls)
+    started_at = datetime.now()
+    log(f"\nСтарт: {started_at.strftime('%d.%m.%Y %H:%M:%S')} · всего URL: {total}")
+    if parallel_articles > 1:
+        log(f"Статьи: параллельно до {parallel_articles} потоков. Видео: последовательно.")
+    if chunk_size < total:
+        chunks = (total + chunk_size - 1) // chunk_size
+        log(f"Режим порций: {chunks} порции по ~{chunk_size} URL, пауза {pause_minutes} мин между ними")
+
+    t_batch = time.monotonic()
+    counters = {"ok": 0, "skipped": 0, "active": 0.0,
+                "input_tokens": 0, "output_tokens": 0}
+    pause_seconds = 0.0
+
+    # Pre-detect types so we can route articles to thread pool
+    article_batch: list[tuple[int, str]] = []  # (original_index, url)
+
+    for i, url in enumerate(urls, 1):
+        log(f"\n[{i}/{total}]")
+
+        # Detect type first (fast, no extraction yet)
+        try:
+            source_type = route(url)
+        except (URLNotFoundError, UnsupportedSourceError) as e:
+            log(f"ПРОПУСК: {e}")
+            with _results_lock:
+                cat = _categorize_error(e)
+                error_counts[cat].append(url)
+                failed_items.append((url, url, cat))
+            continue
+
+        if source_type == "video" or parallel_articles <= 1:
+            # Videos always sequential; articles too if parallel disabled
+            t_url = time.monotonic()
+            result = run(url)
+            counters["active"] += time.monotonic() - t_url
+            _record_result(result, url, counters)
+        else:
+            # Collect articles for parallel processing at chunk boundary or end
+            article_batch.append((i, url))
+            if len(article_batch) >= parallel_articles or i == total:
+                log(f"  ↦ запускаю {len(article_batch)} статей параллельно...")
+                t_url = time.monotonic()
+                with ThreadPoolExecutor(max_workers=parallel_articles) as pool:
+                    futures = {pool.submit(run, u): (idx, u) for idx, u in article_batch}
+                    for future in as_completed(futures):
+                        idx, u = futures[future]
+                        result = future.result()
+                        _record_result(result, u, counters)
+                counters["active"] += time.monotonic() - t_url
+                article_batch = []
 
         # Pause between chunks to avoid YouTube IP blocking
         if i < total and i % chunk_size == 0:
@@ -255,7 +293,7 @@ def run_batch(urls: list[str], chunk_size: int = 100, pause_minutes: int = 15) -
                 time.sleep(30)
                 log(f"  ещё {_fmt_duration(remaining - 30)}...")
             log("Продолжаю...")
-        elif i < total:
+        elif i < total and source_type == "video":
             delay = random.uniform(2, 5)
             pause_seconds += delay
             time.sleep(delay)
@@ -265,7 +303,8 @@ def run_batch(urls: list[str], chunk_size: int = 100, pause_minutes: int = 15) -
     logs_dir = Path(__file__).parent / "logs"
     _write_url_report(logs_dir / f"{stamp}_ok.txt", ok_items, columns=("URL", "Название"))
     _write_url_report(logs_dir / f"{stamp}_failed.txt", failed_items, columns=("URL", "Название", "Причина"))
-    _print_summary(started_at, elapsed, active_seconds, pause_seconds, ok, skipped, total, total_input_tokens, total_output_tokens)
+    _print_summary(started_at, elapsed, counters["active"], pause_seconds, counters["ok"],
+                   counters["skipped"], total, counters["input_tokens"], counters["output_tokens"])
 
 
 def _write_url_report(path: Path, rows: list[tuple], columns: tuple) -> None:
@@ -360,6 +399,8 @@ if __name__ == "__main__":
                         help="Кол-во видео в одной порции (default: 100)")
     parser.add_argument("--pause", type=int, default=15,
                         help="Пауза между порциями в минутах (default: 15)")
+    parser.add_argument("--parallel", type=int, default=1, metavar="N",
+                        help="Параллельных потоков для статей (default: 1, рекомендуем 3-5)")
     args = parser.parse_args()
 
     log_path = _setup_logging()
@@ -372,11 +413,11 @@ if __name__ == "__main__":
         except UnicodeDecodeError:
             with open(args.batch, encoding="utf-8") as f:
                 urls = [line.strip() for line in f if line.strip() and not line.startswith("#")]
-        run_batch(urls, chunk_size=args.chunk_size, pause_minutes=args.pause)
+        run_batch(urls, chunk_size=args.chunk_size, pause_minutes=args.pause, parallel_articles=args.parallel)
     elif args.target:
         urls = expand_playlist(args.target)
         if len(urls) > 1:
-            run_batch(urls, chunk_size=args.chunk_size, pause_minutes=args.pause)
+            run_batch(urls, chunk_size=args.chunk_size, pause_minutes=args.pause, parallel_articles=args.parallel)
         else:
             run(args.target)
     else:

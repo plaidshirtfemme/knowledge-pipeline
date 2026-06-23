@@ -104,8 +104,11 @@ cp .env.example .env
 # Single URL
 python ingest.py https://youtube.com/watch?v=...
 
-# Batch from file
+# Batch from file (sequential)
 python ingest.py --batch urls.txt --chunk-size 20 --pause 10
+
+# Batch with parallel article processing (3-5 threads recommended)
+python ingest.py --batch urls.txt --chunk-size 20 --pause 10 --parallel 4
 
 # Re-enrich existing notes (dry run first)
 python reenrich.py --limit 5
