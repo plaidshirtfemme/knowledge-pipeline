@@ -154,6 +154,10 @@ def enrich(text: str, hint_title: str | None = None) -> dict:
             raw = response.content[0].text.strip()
             raw = _strip_markdown_fences(raw)
             data = json.loads(raw)
+            data["_usage"] = {
+                "input_tokens": response.usage.input_tokens,
+                "output_tokens": response.usage.output_tokens,
+            }
             break
         except json.JSONDecodeError as e:
             # Model returned malformed JSON — retry up to MAX_RETRIES

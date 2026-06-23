@@ -141,7 +141,8 @@ def run(url: str) -> tuple:
         log(f"[3/5] Обогащение через Claude...")
         enrich_text = text or extracted.get("description", "")
         enriched = enrich(enrich_text, hint_title=hint_title)
-        log(f"      → папка: {enriched.get('folder')} | теги: {enriched.get('tags')}")
+        usage = enriched.pop("_usage", {})
+        log(f"      → папка: {enriched.get('folder')} | теги: {enriched.get('tags')} | токены: {usage.get('input_tokens', 0)}→{usage.get('output_tokens', 0)}")
 
         title = enriched.get("title") or hint_title
 
@@ -161,7 +162,7 @@ def run(url: str) -> tuple:
 
         elapsed = time.monotonic() - t_start
         log(f"ГОТОВО за {_fmt_duration(elapsed)}: {title}")
-        return "ok", title
+        return "ok", title, usage
 
     except Exception as e:
         elapsed = time.monotonic() - t_start
@@ -210,6 +211,8 @@ def run_batch(urls: list[str], chunk_size: int = 100, pause_minutes: int = 15) -
     skipped = 0
     active_seconds = 0.0
     pause_seconds = 0.0
+    total_input_tokens = 0
+    total_output_tokens = 0
 
     for i, url in enumerate(urls, 1):
         log(f"\n[{i}/{total}]")
@@ -223,6 +226,9 @@ def run_batch(urls: list[str], chunk_size: int = 100, pause_minutes: int = 15) -
         if status == "ok":
             ok += 1
             ok_items.append((url, title))
+            usage = result[2] if len(result) > 2 else {}
+            total_input_tokens += usage.get("input_tokens", 0)
+            total_output_tokens += usage.get("output_tokens", 0)
         elif status == "skipped":
             skipped += 1
             ok_items.append((url, title))
@@ -259,7 +265,7 @@ def run_batch(urls: list[str], chunk_size: int = 100, pause_minutes: int = 15) -
     logs_dir = Path(__file__).parent / "logs"
     _write_url_report(logs_dir / f"{stamp}_ok.txt", ok_items, columns=("URL", "Название"))
     _write_url_report(logs_dir / f"{stamp}_failed.txt", failed_items, columns=("URL", "Название", "Причина"))
-    _print_summary(started_at, elapsed, active_seconds, pause_seconds, ok, skipped, total)
+    _print_summary(started_at, elapsed, active_seconds, pause_seconds, ok, skipped, total, total_input_tokens, total_output_tokens)
 
 
 def _write_url_report(path: Path, rows: list[tuple], columns: tuple) -> None:
@@ -291,7 +297,7 @@ def _write_url_report(path: Path, rows: list[tuple], columns: tuple) -> None:
     log(f"  → {path.name} ({len(rows)} записей)")
 
 
-def _print_summary(started_at: datetime, elapsed: float, active_seconds: float, pause_seconds: float, ok: int, skipped: int, total: int) -> None:
+def _print_summary(started_at: datetime, elapsed: float, active_seconds: float, pause_seconds: float, ok: int, skipped: int, total: int, input_tokens: int = 0, output_tokens: int = 0) -> None:
     err_total = sum(len(v) for v in error_counts.values())
 
     log(f"\n{'='*60}")
@@ -330,6 +336,12 @@ def _print_summary(started_at: datetime, elapsed: float, active_seconds: float, 
                 continue  # не печатаем — их слишком много и они ожидаемы
             for u in urls_list:
                 log(f"  [{cat}] {u}")
+    if input_tokens or output_tokens:
+        # Claude Haiku pricing: $0.80/M input, $4.00/M output (as of 2025)
+        cost_usd = (input_tokens / 1_000_000 * 0.80) + (output_tokens / 1_000_000 * 4.00)
+        log(f"{'─'*60}")
+        log(f"Токены Claude: {input_tokens:,} input + {output_tokens:,} output ≈ ${cost_usd:.4f}")
+
     if embedded_video_urls_found:
         total_embedded = sum(n for _, n in embedded_video_urls_found)
         log(f"{'─'*60}")
