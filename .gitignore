@@ -1,0 +1,21 @@
+# Secrets & auth
+.env
+cookies.txt
+
+# Personal data
+urls.txt
+logs/
+RECOMMENDATIONS.md
+
+# Build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Data
+*.db
+*.db-wal
+*.db-shm
