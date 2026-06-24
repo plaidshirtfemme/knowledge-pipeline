@@ -40,7 +40,7 @@ Each note is a Markdown file with YAML frontmatter:
 note_id: 20260618-4508
 title: 'UI паттерны: стандартизированные элементы интерфейса'
 source_url: https://www.youtube.com/watch?v=4mVJvM1gqHs
-source_type: youtube
+source_type: video
 published: "2019-02-27"
 tags:
 - ux_ui_design
@@ -79,6 +79,7 @@ knowledge-pipeline/
 ├── note_writer.py         # Markdown + frontmatter generation, vault filing
 ├── store.py               # DuckDB vector storage
 ├── config.py              # Vault folder taxonomy (~40 folders), settings
+├── exceptions.py          # Typed exceptions (IPBlockedError, VideoTooLongError, etc.)
 ├── extractors/
 │   ├── video.py           # Transcript extraction with fallback chain (YouTube, Vimeo, Rutube, VK)
 │   └── article.py         # Web article extraction (detects embedded videos, counts them)
@@ -106,6 +107,9 @@ python ingest.py https://youtube.com/watch?v=...
 
 # Batch from file (sequential)
 python ingest.py --batch urls.txt --chunk-size 20 --pause 10
+
+# Batch with parallel article processing (3-5 threads recommended)
+python ingest.py --batch urls.txt --chunk-size 20 --pause 10 --parallel 4
 
 # Batch with parallel article processing (3-5 threads recommended)
 python ingest.py --batch urls.txt --chunk-size 20 --pause 10 --parallel 4

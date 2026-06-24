@@ -2,10 +2,14 @@
 .env
 cookies.txt
 
-# Personal data
+# Personal data & working documents
 urls.txt
 logs/
 RECOMMENDATIONS.md
+PROJECT.md
+BRIEF_отклик_и_дашборд.md
+\[*\]*PROJECT_STATUS.md
+streamlit_reference_dashboard.webp
 
 # Build artifacts
 __pycache__/
@@ -14,8 +18,12 @@ __pycache__/
 *.pyd
 .venv/
 venv/
+.pytest_cache/
 
 # Data
 *.db
 *.db-wal
 *.db-shm
+
+# Reflex experiment (work in progress)
+dashboard_reflex/
