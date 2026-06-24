@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-VAULT_PATH = Path(os.getenv("VAULT_PATH", r"VAULT_PATH_PLACEHOLDER"))
+VAULT_PATH = Path(os.getenv("VAULT_PATH", ""))
 DB_PATH = Path(os.getenv("DB_PATH", Path(__file__).parent / "knowledge.db"))
 
 CLAUDE_MODEL = "claude-haiku-4-5-20251001"

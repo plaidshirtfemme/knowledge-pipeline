@@ -1,7 +1,9 @@
 import os, re
 from collections import defaultdict
 
-vault = r'VAULT_PATH_PLACEHOLDER\design_programming'
+import sys
+from config import VAULT_PATH
+vault = str(VAULT_PATH)
 tag_counts = defaultdict(int)
 tag_folders = defaultdict(lambda: defaultdict(int))
 
