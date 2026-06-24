@@ -89,7 +89,6 @@ knowledge-pipeline/
 ├── reenrich.py            # Переклассификация существующих заметок с обновлёнными промптами
 ├── fix_tags.py            # Нормализация тегов по всему vault
 ├── analyze_tags.py        # Анализ распределения тегов
-├── dashboard.py           # Streamlit-дашборд: папки, теги, таймлайн, очередь ревью
 └── logs/                  # Логи каждого запуска + отчёты ok/failed по URL (в .gitignore)
 ```
 
@@ -119,7 +118,4 @@ python reenrich.py --apply
 
 # Запуск тестов
 python -m pytest tests/
-
-# Запуск дашборда
-streamlit run dashboard.py
 ```

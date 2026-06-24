@@ -87,7 +87,6 @@ knowledge-pipeline/
 ├── reenrich.py            # Re-classify existing notes with updated prompts
 ├── fix_tags.py            # Normalize tags across vault
 ├── analyze_tags.py        # Tag distribution analysis
-├── dashboard.py           # Streamlit dashboard: folders, tags, timeline, review queue
 └── logs/                  # Per-run logs + ok/failed URL reports (gitignored)
 ```
 
@@ -120,7 +119,4 @@ python reenrich.py --apply
 
 # Run tests
 python -m pytest tests/
-
-# Launch dashboard
-streamlit run dashboard.py
 ```
