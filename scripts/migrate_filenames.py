@@ -3,14 +3,16 @@ Renames existing notes to the new format: [YYYY-MM-DD] [source] title.md
 Reads data from frontmatter only — no API calls, no re-extraction.
 
 Usage:
-    python migrate_filenames.py          # dry run — shows what would change
-    python migrate_filenames.py --apply  # actually renames files
+    python scripts/migrate_filenames.py          # dry run — shows what would change
+    python scripts/migrate_filenames.py --apply  # actually renames files
 """
 
-import re
 import sys
-import yaml
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+import re
+import yaml
 from urllib.parse import urlparse
 from config import VAULT_PATH
 

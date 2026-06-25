@@ -4,14 +4,16 @@ tries to re-fetch the published date from the source URL,
 then renames the file and updates only `published` in frontmatter.
 
 Usage:
-    python update_dates.py          # dry run — shows what would change
-    python update_dates.py --apply  # actually rename + update
+    python scripts/update_dates.py          # dry run — shows what would change
+    python scripts/update_dates.py --apply  # actually rename + update
 """
 
-import re
 import sys
-import yaml
 from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+import re
+import yaml
 from config import VAULT_PATH
 from note_writer import _Quoted, _q
 

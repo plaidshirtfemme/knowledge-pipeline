@@ -1,13 +1,22 @@
-anthropic>=0.30.0
+# Извлечение
 trafilatura>=1.12.0
 youtube-transcript-api>=0.6.2
 yt-dlp>=2024.1.1
-sentence-transformers>=3.0.0
-duckdb>=1.0.0
-python-dotenv>=1.0.0
 requests>=2.31.0
 markdownify>=0.13.1
+
+# Обогащение (LLM)
+anthropic>=0.30.0
+
+# Запись (frontmatter)
 pyyaml>=6.0
+
+# Эмбеддинги и хранилище
+sentence-transformers>=3.0.0
+duckdb>=1.0.0
+
+# Инфраструктура
+python-dotenv>=1.0.0
+
+# Тесты
 pytest>=8.0
-streamlit>=1.35.0
-plotly>=5.20.0

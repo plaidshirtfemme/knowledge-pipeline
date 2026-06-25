@@ -27,8 +27,6 @@ def _ydl_opts() -> dict:
 
 def extract(url: str) -> dict:
     video_id = _get_video_id(url)
-    if not video_id:
-        raise ValueError(f"Не удалось извлечь video_id из {url}")
 
     title, channel, published, description, duration = _get_metadata(url)
 
@@ -36,31 +34,32 @@ def extract(url: str) -> dict:
         mins = duration // 60
         raise VideoTooLongError(f"Видео длиннее {MAX_DURATION_MINUTES} минут ({mins} мин) — пропускаю: {title or url}")
 
-    # Method 1: youtube-transcript-api (hits /api/timedtext — different rate limits than CDN)
-    try:
-        transcript = _get_transcript_api(video_id)
-        return {
-            "title": title,
-            "channel": channel,
-            "published": published,
-            "description": description,
-            "text": transcript,
-            "needs_review": False,
-            "fallback_used": False,
-        }
-    except (NoTranscriptFound, TranscriptsDisabled):
-        pass
-    except IpBlocked as e:
-        raise IPBlockedError(
-            "YouTube заблокировал IP (IpBlocked). Смени сервер VPN и обнови cookies.txt."
-        ) from e
-    except Exception as e:
-        err = str(e)
-        if "429" in err or "Too Many Requests" in err:
+    # Method 1: youtube-transcript-api (YouTube only — skipped for non-YouTube hosts)
+    if video_id:
+        try:
+            transcript = _get_transcript_api(video_id)
+            return {
+                "title": title,
+                "channel": channel,
+                "published": published,
+                "description": description,
+                "text": transcript,
+                "needs_review": False,
+                "fallback_used": False,
+            }
+        except (NoTranscriptFound, TranscriptsDisabled):
+            pass
+        except IpBlocked as e:
             raise IPBlockedError(
-                "YouTube заблокировал запрос (IP-блок). Смени сервер VPN или подожди 30-60 мин."
+                "YouTube заблокировал IP (IpBlocked). Смени сервер VPN и обнови cookies.txt."
             ) from e
-        # Other errors — try yt-dlp next
+        except Exception as e:
+            err = str(e)
+            if "429" in err or "Too Many Requests" in err:
+                raise IPBlockedError(
+                    "YouTube заблокировал запрос (IP-блок). Смени сервер VPN или подожди 30-60 мин."
+                ) from e
+            # Other errors — try yt-dlp next
 
     # Method 2: yt-dlp subtitle download
     try:
@@ -126,7 +125,7 @@ def _get_transcript_api(video_id: str) -> str:
 
 
 def _get_transcript_ytdlp(url: str) -> str:
-    """Download subtitles via yt-dlp CLI subprocess — avoids Python API format-processing issues."""
+    """Download subtitles via yt-dlp CLI subprocess."""
     import subprocess
     import sys
 
@@ -169,35 +168,19 @@ def _get_transcript_ytdlp(url: str) -> str:
         return _parse_vtt(chosen.read_text(encoding="utf-8"))
 
 
-def _parse_json3(text: str) -> str:
-    import json
-    data = json.loads(text)
-    words = []
-    for event in data.get("events", []):
-        for seg in event.get("segs", []):
-            w = seg.get("utf8", "").strip()
-            if w and w != "\n":
-                words.append(w)
-    return " ".join(words)
-
-
 def _parse_vtt(vtt: str) -> str:
     """Extract plain text from WebVTT subtitle file."""
     lines = []
     for line in vtt.splitlines():
         line = line.strip()
-        # Skip header, timestamps, empty lines, and NOTE blocks
         if not line or line.startswith("WEBVTT") or line.startswith("NOTE") or "-->" in line:
             continue
-        # Skip lines that are only numbers (cue identifiers)
         if line.isdigit():
             continue
-        # Remove VTT tags like <00:00:01.000>, <c>, </c>
         line = re.sub(r"<[^>]+>", "", line)
         if line:
             lines.append(line)
 
-    # Deduplicate consecutive identical lines (VTT often repeats)
     deduped = []
     for line in lines:
         if not deduped or line != deduped[-1]:
@@ -218,22 +201,3 @@ def _get_metadata(url: str) -> tuple[str | None, str | None, str | None, str | N
         return info.get("title"), info.get("uploader"), published, info.get("description"), info.get("duration")
     except Exception:
         return None, None, None, None, None
-
-
-def _whisper_fallback(url: str) -> str:
-    import yt_dlp
-    from faster_whisper import WhisperModel
-
-    with tempfile.TemporaryDirectory() as tmp:
-        audio_path = os.path.join(tmp, "audio.mp3")
-        ydl_opts = _ydl_opts() | {
-            "format": "bestaudio/best",
-            "outtmpl": audio_path,
-            "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3"}],
-        }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-
-        model = WhisperModel("base", device="cpu", compute_type="int8")
-        segments, _ = model.transcribe(audio_path + ".mp3", beam_size=5)
-        return " ".join(s.text for s in segments)

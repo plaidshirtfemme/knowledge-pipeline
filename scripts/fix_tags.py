@@ -2,13 +2,16 @@
 Fix tags in existing vault notes: rename and remove according to new ALLOWED_TAGS.
 
 Usage:
-    python fix_tags.py          # dry run — показывает что изменится
-    python fix_tags.py --apply  # применяет изменения
+    python scripts/fix_tags.py          # dry run — показывает что изменится
+    python scripts/fix_tags.py --apply  # применяет изменения
 """
+
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import re
 import argparse
-from pathlib import Path
 from config import VAULT_PATH
 
 # Tags to remove entirely
@@ -43,7 +46,6 @@ RENAME = {
 
 def fix_note_tags(text: str) -> tuple[str, list[str]]:
     """Return (new_text, list_of_changes). If no changes, new_text == text."""
-    # Find tags block in frontmatter
     fm_match = re.match(r'^(---\n)(.*?)(\n---\n)', text, re.DOTALL)
     if not fm_match:
         return text, []

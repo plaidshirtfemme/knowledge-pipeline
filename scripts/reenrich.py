@@ -2,7 +2,7 @@
 Re-run Claude enrichment on existing vault notes.
 
 Usage:
-    python reenrich.py [--apply] [--folder FOLDER_KEY] [--limit N]
+    python scripts/reenrich.py [--apply] [--folder FOLDER_KEY] [--limit N]
 
     --apply          Actually apply changes (default: dry run)
     --folder KEY     Only process notes in this folder key (e.g. portfolio)
@@ -23,13 +23,15 @@ What it does NOT touch:
     needs_review, no_subtitles, added — эти поля не меняются.
 """
 
-import re
 import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+import re
 import time
 import random
 import argparse
 import yaml
-from pathlib import Path
 
 from config import VAULT_PATH, VAULT_FOLDERS
 from enrich import enrich

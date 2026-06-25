@@ -1,8 +1,12 @@
-import os, re
-from collections import defaultdict
-
 import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+import os
+import re
+from collections import defaultdict
 from config import VAULT_PATH
+
 vault = str(VAULT_PATH)
 tag_counts = defaultdict(int)
 tag_folders = defaultdict(lambda: defaultdict(int))
@@ -16,12 +20,10 @@ for root, dirs, files in os.walk(vault):
             content = open(os.path.join(root, f), encoding='utf-8', errors='ignore').read(3000)
         except:
             continue
-        # Extract frontmatter block
         fm_match = re.search(r'^---\n(.*?)\n---', content, re.DOTALL)
         if not fm_match:
             continue
         fm = fm_match.group(1)
-        # Find tags section (list format: "tags:\n- tag1\n- tag2")
         tags_match = re.search(r'tags:\n((?:- .+\n?)+)', fm)
         if not tags_match:
             continue
