@@ -129,7 +129,7 @@ def run(url: str) -> tuple:
 
         text = extracted.get("text", "")
         if not text.strip():
-            if source_type == "youtube" and extracted.get("description"):
+            if source_type == "video" and extracted.get("description"):
                 extracted["text"] = ""
                 extracted["needs_review"] = True
                 log(f"      ⚠ субтитры недоступны, создаём заметку только по описанию")

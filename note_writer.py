@@ -35,9 +35,9 @@ def write_note(
     note_id = _make_note_id()
     today = date.today().isoformat()
 
-    channel = extracted.get("channel") if source_type == "youtube" else None
+    channel = extracted.get("channel") if source_type == "video" else None
 
-    if source_type == "youtube":
+    if source_type == "video":
         title = extracted.get("title") or enriched.get("title") or url
         author = enriched.get("author") or channel
     else:
@@ -106,7 +106,7 @@ def _build_body(url: str, today: str, summary: str, concepts_md: str, instructio
 
     sections.append(f"## Источник\n[Оригинал]({url}) · добавлено {today}")
 
-    if source_type == "youtube":
+    if source_type == "video":
         description = extracted.get("description") or ""
         if description:
             sections.append(f"## Описание видео\n\n{description}")
@@ -123,8 +123,8 @@ def _update_note(path: Path, url: str, source_type: str, enriched: dict, extract
     content = path.read_text(encoding="utf-8")
     fm, _ = _split_frontmatter(content)
 
-    channel = extracted.get("channel") if source_type == "youtube" else None
-    author = (enriched.get("author") or channel) if source_type == "youtube" else (enriched.get("author") or extracted.get("author"))
+    channel = extracted.get("channel") if source_type == "video" else None
+    author = (enriched.get("author") or channel) if source_type == "video" else (enriched.get("author") or extracted.get("author"))
 
     for k, v in {
         "concepts": enriched.get("concepts") or [],
